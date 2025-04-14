@@ -1,0 +1,1716 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestão de Alunos Responsiva</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        /* Reset básico e Fontes */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa; /* Cor de fundo suave */
+            color: #343a40; /* Cor de texto principal */
+            display: flex;
+            min-height: 100vh; /* Garante que o corpo ocupe pelo menos a altura da tela */
+            line-height: 1.6; /* Espaçamento entre linhas */
+            font-size: 16px; /* Tamanho de fonte base */
+        }
+
+        /* Layout Principal */
+        .container { display: flex; width: 100%; flex-direction: row; /* Layout flexível em linha por padrão */ }
+
+        /* Sidebar (Menu Lateral) */
+        .sidebar {
+            width: 250px; /* Largura fixa */
+            background-color: #2c3e50; /* Cor de fundo escura */
+            color: #ecf0f1; /* Cor de texto clara */
+            padding: 25px 15px; /* Espaçamento interno */
+            transition: width 0.3s ease, transform 0.3s ease; /* Transição suave para responsividade */
+            flex-shrink: 0; /* Impede que a sidebar encolha */
+            z-index: 10; /* Garante que fique acima do conteúdo em sobreposições */
+            display: flex; flex-direction: column; /* Organiza itens verticalmente */
+        }
+        .sidebar h2 { text-align: center; margin-bottom: 30px; color: #ffffff; font-size: 1.4em; }
+        .sidebar nav { flex-grow: 1; /* Faz a navegação ocupar o espaço restante */ }
+        .sidebar nav ul { list-style: none; padding: 0; }
+        .sidebar nav ul li { margin-bottom: 15px; /* Espaçamento entre itens do menu */ }
+        .sidebar nav ul li a {
+            color: #bdc3c7; /* Cor do link */
+            text-decoration: none; /* Remove sublinhado */
+            display: block; /* Ocupa toda a largura */
+            padding: 10px 15px; /* Espaçamento interno do link */
+            border-radius: 4px; /* Bordas arredondadas */
+            transition: background-color 0.3s ease, color 0.3s ease; /* Transição suave no hover */
+            font-size: 1.05em;
+        }
+        .sidebar nav ul li a:hover, .sidebar nav ul li a.active {
+            background-color: #34495e; /* Cor de fundo no hover/ativo */
+            color: #ffffff; /* Cor do texto no hover/ativo */
+        }
+
+        /* Conteúdo Principal */
+        .main-content {
+            flex-grow: 1; /* Ocupa o espaço restante */
+            padding: 20px 30px; /* Espaçamento interno */
+            overflow-y: auto; /* Adiciona barra de rolagem vertical se necessário */
+            background-color: #f8f9fa; /* Cor de fundo igual ao body */
+        }
+
+        /* Gerenciamento de Views (Telas) */
+        .view { display: none; animation: fadeIn 0.5s; /* Escondido por padrão, com animação de fade-in */ }
+        .view.active-view { display: block; /* Mostra a view ativa */ }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } } /* Animação de fade-in */
+
+        /* Cabeçalhos dentro das Views */
+        .view-header {
+            display: flex;
+            justify-content: space-between; /* Alinha título à esquerda e botões à direita */
+            align-items: center; /* Alinha verticalmente */
+            margin-bottom: 25px; padding-bottom: 10px; /* Espaçamentos */
+            border-bottom: 2px solid #e0e0e0; /* Linha divisória */
+            flex-wrap: wrap; /* Permite que os itens quebrem linha em telas menores */
+            gap: 15px; /* Espaço entre título e botões quando quebram linha */
+        }
+         .view-header h1, .view-header h2 {
+             color: #2c3e50; /* Cor do título */
+             margin: 0; /* Remove margem padrão */
+             font-size: 2em; /* Tamanho do título */
+             flex-shrink: 0; /* Impede que o título encolha demais */
+         }
+
+        /* Botões (Estilos Gerais) */
+        .action-buttons { display: flex; gap: 10px; flex-wrap: wrap; /* Alinha botões lado a lado com espaçamento, permitindo quebra de linha */ }
+        .btn {
+            padding: 10px 15px; /* Espaçamento interno */
+            border: none; /* Sem borda */
+            border-radius: 5px; /* Bordas arredondadas */
+            cursor: pointer; /* Cursor de mão */
+            font-size: 0.95em; /* Tamanho da fonte */
+            transition: background-color 0.3s ease, box-shadow 0.3s ease, opacity 0.3s ease; /* Transições suaves */
+            text-decoration: none; /* Remove sublinhado se for link */
+            display: inline-flex; align-items: center; justify-content: center; /* Alinha ícone e texto */
+            gap: 5px; /* Espaço entre ícone e texto */
+            text-align: center; /* Centraliza texto */
+            line-height: 1.4; /* Altura da linha */
+            white-space: nowrap; /* Impede que o texto do botão quebre linha */
+            vertical-align: middle; /* Alinha bem quando os botões quebram linha */
+        }
+        .btn:disabled { /* Estilo para botões desabilitados */
+            background-color: #adb5bd;
+            color: #6c757d;
+            cursor: not-allowed;
+            box-shadow: none;
+            opacity: 0.65; /* Adiciona opacidade para indicar desativação */
+        }
+        /* Cores dos Botões */
+        .btn-primary { background-color: #007bff; color: white; }
+        .btn-primary:not(:disabled):hover { background-color: #0056b3; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15); }
+        .btn-secondary { background-color: #6c757d; color: white; }
+        .btn-secondary:not(:disabled):hover { background-color: #5a6268; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15); }
+        .btn-success { background-color: #28a745; color: white; }
+        .btn-success:not(:disabled):hover { background-color: #218838; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15); }
+        .btn-info { background-color: #17a2b8; color: white; }
+        .btn-info:not(:disabled):hover { background-color: #117a8b; }
+        .btn-warning { background-color: #ffc107; color: #212529; }
+        .btn-warning:not(:disabled):hover { background-color: #e0a800; }
+        .btn-danger { background-color: #dc3545; color: white; }
+        .btn-danger:not(:disabled):hover { background-color: #c82333; }
+        /* Botões Pequenos (usados na tabela) */
+        .btn-sm {
+            padding: 5px 8px; /* Menor padding */
+            font-size: 1.1em; /* Tamanho ligeiramente maior para ícones */
+            line-height: 1; /* Ajusta altura da linha */
+            margin: 0 2px; /* Pequena margem lateral */
+        }
+        /* Container para botões de formulário (Salvar, Cancelar) */
+        .form-actions { margin-top: 25px; display: flex; gap: 10px; justify-content: flex-end; /* Alinha à direita */ }
+
+        /* Tabela */
+        .table-container { overflow-x: auto; /* Adiciona rolagem horizontal se a tabela for muito larga */ }
+        .students-table {
+            width: 100%; /* Largura total */
+            border-collapse: collapse; /* Remove espaço entre bordas */
+            margin-top: 10px; /* Margem superior */
+            background-color: #ffffff; /* Fundo branco */
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1); /* Sombra suave */
+            min-width: 700px; /* Largura mínima para evitar quebra excessiva */
+        }
+        .students-table thead { background-color: #34495e; color: #ffffff; /* Cabeçalho escuro */ }
+        .students-table th, .students-table td {
+            padding: 12px 15px; /* Espaçamento interno das células */
+            text-align: left; /* Alinhamento padrão à esquerda */
+            border-bottom: 1px solid #dee2e6; /* Linha divisória entre linhas */
+            vertical-align: middle; /* Alinha conteúdo verticalmente ao centro */
+            white-space: nowrap; /* Impede quebra de linha por padrão */
+        }
+        /* Coluna do Checkbox */
+        .students-table th:first-child, .students-table td:first-child {
+            width: 40px; /* Largura fixa */
+            text-align: center; /* Centraliza checkbox */
+            padding-left: 10px;
+            padding-right: 10px;
+        }
+         /* Coluna do Nome (permite quebra de linha) */
+         .students-table th:nth-child(2), .students-table td:nth-child(2) { white-space: normal; }
+        .students-table th { font-weight: 600; /* Negrito para cabeçalho */ }
+        .students-table tbody tr:nth-child(even) { background-color: #f8f9fa; /* Cor alternada para linhas pares */ }
+        .students-table tbody tr:hover { background-color: #e9ecef; /* Cor no hover */ }
+        /* Colunas centralizadas (Nº Disciplinas e Ações) */
+        .students-table td:nth-child(3), .students-table th:nth-child(3) { text-align: center; }
+        .students-table td:last-child, .students-table th:last-child { text-align: center; white-space: nowrap; }
+
+        /* Formulários (Adicionar/Editar Views) */
+         .form-container {
+             background-color: #ffffff; padding: 25px 30px; border-radius: 8px; /* Container branco com bordas arredondadas */
+             box-shadow: 0 2px 5px rgba(0,0,0,0.1); max-width: 700px; margin: 0 auto; /* Centralizado e com sombra */
+         }
+         .form-group { margin-bottom: 20px; /* Espaçamento entre campos */ }
+         .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #495057; font-size: 0.95em; }
+         .form-group input[type="text"], .form-group input[type="number"], .form-group input[type="checkbox"] {
+             /* width: 100%; */ /* Removido para aplicar individualmente */
+             padding: 12px; border: 1px solid #ced4da; border-radius: 4px; /* Estilo padrão dos inputs */
+             font-size: 1em; transition: border-color 0.2s ease, box-shadow 0.2s ease; /* Transição no foco */
+         }
+         .form-group input[type="text"], .form-group input[type="number"] { width: 100%; /* Inputs de texto/número ocupam largura total */ }
+         .form-group input[type="checkbox"] { width: auto; padding: 0; margin-right: 8px; vertical-align: middle; /* Estilo específico para checkbox */ }
+         .form-group input:focus { border-color: #80bdff; outline: 0; box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25); /* Estilo no foco */ }
+         .form-note { font-size: 0.9em; color: #6c757d; margin-top: 15px; /* Nota/instrução no formulário */ }
+         .import-note { font-size: 0.9em; color: #444; margin-top: 5px; background-color: #e9ecef; padding: 8px; border-radius: 4px; /* Nota específica de importação */ }
+
+        /* View de Detalhes */
+         .details-container {
+             background-color: #ffffff; padding: 25px 30px; border-radius: 8px; /* Similar ao form-container */
+             box-shadow: 0 2px 5px rgba(0,0,0,0.1); max-width: 700px; margin: 0 auto;
+         }
+        #detailsList { list-style: none; padding-left: 0; margin-top: 15px; /* Lista de disciplinas */ }
+        #detailsList li {
+            background-color: #e9ecef; padding: 10px 15px; margin-bottom: 10px; border-radius: 4px; /* Estilo dos itens da lista */
+            display: flex; justify-content: space-between; align-items: center; /* Alinhamento interno */
+            flex-wrap: wrap; /* Permite quebra de linha */
+            gap: 10px; /* Espaço entre nome e contagem */
+        }
+         #detailsList li span:first-child { /* Nome da disciplina */
+             flex-grow: 1; /* Ocupa espaço disponível */
+             word-break: break-word; /* Quebra palavras longas */
+         }
+         #detailsList li span:last-child { /* Contagem de arquivos */
+             font-weight: 600; color: #495057;
+             flex-shrink: 0; /* Impede que encolha */
+         }
+         #noDetailsMsg { color: #6c757d; margin-top: 15px; text-align: center; /* Mensagem se não houver disciplinas */ }
+
+        /* Esconde input de arquivo padrão (estilizado via botão) */
+        #fileInput { display: none; }
+
+        /* Estilos específicos para a funcionalidade de disciplinas (listas em Add/Edit/Link) */
+        #disciplinesList, #editDisciplinesList, #linkExistingDisciplinesList, #linkAddedDisciplinesList {
+            list-style: none;
+            padding: 0;
+            margin-bottom: 20px;
+            max-height: 200px; /* Altura máxima com rolagem */
+            overflow-y: auto; /* Barra de rolagem vertical */
+            border: 1px solid #eee; /* Borda suave */
+            padding: 10px;
+            border-radius: 4px;
+            background-color: #f8f9fa; /* Fundo levemente diferente */
+        }
+        #disciplinesList li, #editDisciplinesList li, #linkExistingDisciplinesList li, #linkAddedDisciplinesList li {
+            background-color: #e9ecef; /* Fundo dos itens */
+            padding: 8px 12px; /* Espaçamento interno */
+            margin-bottom: 5px; /* Espaçamento entre itens */
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between; /* Alinha nome à esquerda, botão à direita */
+            align-items: center; /* Alinha verticalmente */
+            gap: 10px; /* Espaço entre nome e botão */
+        }
+        /* Estilo para listas com checkboxes (Link View) */
+        #linkExistingDisciplinesList li label {
+            display: flex;
+            align-items: center;
+            flex-grow: 1; /* Label ocupa espaço */
+            cursor: pointer; /* Cursor de mão no label */
+        }
+        #linkExistingDisciplinesList li input[type="checkbox"] {
+            margin-right: 10px; /* Espaço entre checkbox e texto */
+            flex-shrink: 0; /* Impede que checkbox encolha */
+        }
+        #linkExistingDisciplinesList li span, #linkAddedDisciplinesList li span {
+             word-break: break-word; /* Permite quebra de nomes longos */
+             flex-grow: 1; /* Texto ocupa espaço */
+        }
+        /* Botão de Remover Disciplina (dentro das listas) */
+        #disciplinesList li button, #editDisciplinesList li button, #linkAddedDisciplinesList li button {
+            padding: 4px 8px; /* Padding menor */
+            font-size: 0.9em; /* Fonte um pouco menor */
+            line-height: 1;
+            flex-shrink: 0; /* Impede que botão encolha */
+            background-color: #dc3545; /* Cor vermelha (perigo) */
+            color: white;
+            border: none;
+            border-radius: 3px;
+        }
+         #disciplinesList li button:hover, #editDisciplinesList li button:hover, #linkAddedDisciplinesList li button:hover {
+             background-color: #c82333; /* Cor mais escura no hover */
+         }
+
+        /* Área para adicionar nova disciplina (input + botão) */
+        .add-discipline-area {
+            display: flex;
+            gap: 10px; /* Espaço entre input e botão */
+            margin-bottom: 10px;
+            margin-top: 10px;
+        }
+        .add-discipline-area input {
+            flex-grow: 1; /* Input ocupa espaço restante */
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 1em;
+        }
+        .add-discipline-area button {
+            flex-shrink: 0; /* Impede que botão encolha */
+        }
+
+        /* Estilos Específicos da View de Vincular Disciplinas */
+        #linkSelectedStudents { /* Área que mostra nomes dos alunos selecionados */
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            font-size: 0.95em;
+        }
+        #linkSelectedStudents strong { /* Título "Alunos Selecionados" */
+            display: block;
+            margin-bottom: 5px;
+            color: #495057;
+        }
+        #linkSelectedStudents span { /* Tags com nomes dos alunos */
+            display: inline-block;
+            margin-right: 8px;
+            background-color: #d1ecf1; /* Fundo azul claro */
+            color: #0c5460; /* Texto azul escuro */
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin-bottom: 3px;
+        }
+        .disciplines-section-header { /* Títulos das seções (Existentes, Novas) */
+            font-weight: 600;
+            color: #495057;
+            margin-top: 20px;
+            margin-bottom: 8px;
+            font-size: 1em;
+            border-bottom: 1px solid #eee; /* Linha divisória sutil */
+            padding-bottom: 5px;
+        }
+
+
+        /* --- Responsividade --- */
+        /* Telas Médias (Tablets) */
+        @media (max-width: 992px) {
+            .sidebar { width: 200px; /* Sidebar mais estreita */ }
+             .main-content { padding: 20px; /* Menos padding lateral */ }
+             .view-header h1, .view-header h2 { font-size: 1.8em; /* Títulos ligeiramente menores */ }
+        }
+
+        /* Telas Pequenas (Celulares em paisagem/tablets menores) */
+        @media (max-width: 768px) {
+            .container { flex-direction: column; /* Layout empilhado */ }
+            .sidebar { /* Sidebar vira um header */
+                width: 100%; height: auto; padding: 10px 15px; flex-direction: row;
+                align-items: center; justify-content: space-between; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .sidebar h2 { margin-bottom: 0; font-size: 1.2em; }
+            .sidebar nav { flex-grow: 0; }
+            .sidebar nav ul { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; }
+            .sidebar nav ul li { margin-bottom: 0; }
+            .sidebar nav ul li a { padding: 8px 10px; font-size: 0.9em; }
+
+            .main-content { padding: 15px; }
+            .view-header { /* Empilha título e botões */
+                 flex-direction: column;
+                 align-items: flex-start; /* Alinha tudo à esquerda */
+                 gap: 10px;
+            }
+            .view-header h1, .view-header h2 { font-size: 1.6em; }
+
+            /* Ajuste dos botões de ação no cabeçalho */
+            .action-buttons {
+                width: 100%; /* Ocupa largura total */
+                justify-content: flex-start; /* Alinha botões à esquerda */
+            }
+
+            .btn { font-size: 0.9em; padding: 8px 12px; }
+            .btn-sm { padding: 5px 8px; font-size: 1em; } /* Ajuste para mobile */
+
+            /* Ajuste na tabela */
+            .students-table th, .students-table td { padding: 10px 8px; font-size: 0.9em; }
+            .students-table th:first-child, .students-table td:first-child { width: 35px; padding-left: 5px; padding-right: 5px; } /* Coluna checkbox mais estreita */
+            .students-table td:last-child { white-space: nowrap; } /* Mantém botões de ação juntos */
+
+            .form-container, .details-container { padding: 20px; }
+             .form-actions { justify-content: center; /* Centraliza Salvar/Cancelar */ }
+        }
+
+         /* Telas Muito Pequenas (Celulares em retrato) */
+         @media (max-width: 480px) {
+             body { font-size: 14px; /* Fonte base menor */ }
+             .view-header h1, .view-header h2 { font-size: 1.5em; }
+             .sidebar nav ul { gap: 5px; justify-content: center;} /* Menu no header centralizado */
+             .sidebar nav ul li a { padding: 6px 8px; }
+
+            /* Botões de ação empilhados */
+            .action-buttons {
+                flex-direction: column; /* Empilha verticalmente */
+                align-items: stretch; /* Estica botões para largura total */
+                gap: 8px;
+            }
+            .action-buttons .btn {
+                 width: 100%; /* Botão ocupa largura total */
+                 justify-content: center; /* Centraliza texto/ícone */
+                 margin-bottom: 5px;
+            }
+             .action-buttons .btn:last-child { margin-bottom: 0; }
+
+             /* Ajustes finos nos botões da tabela */
+             .btn-sm { padding: 4px 6px; font-size: 1em; margin: 0 1px;}
+             .students-table th:first-child, .students-table td:first-child { width: 30px; } /* Checkbox ainda menor */
+
+             /* Ajuste específico para o botão Excluir na tabela (ícone maior) */
+             .students-table td .delete-btn {
+                 padding: 6px 10px; /* Um pouco maior */
+                 font-size: 1.1em;  /* Ícone ligeiramente maior */
+             }
+         }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <h2>Acadêmico</h2>
+            <nav>
+                <ul>
+                    <li><a href="#" class="active" id="navListView">Alunos</a></li>
+                    </ul>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+
+            <div id="view-list" class="view active-view">
+                <div class="view-header">
+                    <h1>Alunos</h1>
+                     <div class="action-buttons">
+                         <button id="addStudentBtn" class="btn btn-success">Adicionar Aluno</button>
+                         <button id="linkDisciplinesBtn" class="btn btn-info" disabled>Vincular Disciplinas aos Selecionados</button>
+                         <button id="importBtn" class="btn btn-secondary">Importar (Excel)</button>
+                         <button id="exportBtn" class="btn btn-primary">Exportar (Excel)</button>
+                         <input type="file" id="fileInput" accept=".xlsx, .xls" style="display: none;">
+                     </div>
+                </div>
+                 <p class="import-note">
+                     Nota Importação: O ficheiro Excel deve ter na Coluna A o Nome do Aluno. Opcionalmente, a Coluna C pode conter os detalhes das disciplinas em formato JSON (como exportado por esta aplicação) ou a Coluna B pode ter nomes de disciplinas separados por vírgula (serão importadas com 0 ficheiros).
+                 </p>
+
+                <div class="table-container">
+                    <table class="students-table">
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" id="selectAllCheckbox" title="Selecionar Todos"></th>
+                                <th>Nome do Aluno</th>
+                                <th>Nº Disciplinas</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="studentsTableBody">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="view-add" class="view">
+                 <div class="view-header">
+                     <h2>Adicionar Novo Aluno</h2>
+                     <button class="btn btn-secondary" id="backFromAddBtn">Voltar para Lista</button>
+                 </div>
+                 <div class="form-container">
+                     <div class="form-group">
+                         <label for="newStudentName">Nome do Aluno:</label>
+                         <input type="text" id="newStudentName" placeholder="Digite o nome completo">
+                     </div>
+                     <div class="form-group">
+                         <label>Disciplinas:</label>
+                         <ul id="disciplinesList">
+                             </ul>
+                         <div class="add-discipline-area">
+                             <input type="text" id="newDisciplineName" placeholder="Nome da disciplina">
+                             <button class="btn btn-success btn-sm" id="addDisciplineBtn">Adicionar</button>
+                         </div>
+                         <p class="form-note">
+                             Adicione as disciplinas do aluno. O número de ficheiros será 0 por padrão.
+                         </p>
+                     </div>
+                     <div class="form-actions">
+                         <button class="btn btn-secondary" id="cancelAddBtn">Cancelar</button>
+                         <button class="btn btn-success" id="saveNewStudentBtn">Salvar Aluno</button>
+                     </div>
+                 </div>
+            </div>
+
+            <div id="view-edit" class="view">
+                <div class="view-header">
+                    <h2>Editar Aluno</h2>
+                     <button class="btn btn-secondary" id="backFromEditBtn">Voltar para Lista</button>
+                </div>
+                <div class="form-container">
+                    <input type="hidden" id="editStudentId">
+                    <div class="form-group">
+                        <label for="editStudentName">Nome do Aluno:</label>
+                        <input type="text" id="editStudentName" placeholder="Digite o nome completo">
+                    </div>
+                    <div class="form-group">
+                        <label>Disciplinas:</label>
+                         <ul id="editDisciplinesList">
+                             </ul>
+                         <div class="add-discipline-area">
+                             <input type="text" id="editNewDisciplineName" placeholder="Adicionar nova disciplina">
+                             <button class="btn btn-success btn-sm" id="editAddDisciplineBtn">Adicionar</button>
+                         </div>
+                        <p class="form-note">Adicione ou remova disciplinas para este aluno.</p>
+                    </div>
+                    <div class="form-actions">
+                        <button class="btn btn-secondary" id="cancelEditBtn">Cancelar</button>
+                        <button class="btn btn-primary" id="saveEditedStudentBtn">Salvar Alterações</button>
+                    </div>
+                </div>
+            </div>
+
+             <div id="view-details" class="view">
+                 <div class="view-header">
+                      <h2 id="detailsViewTitle">Detalhes do Aluno</h2> <button class="btn btn-secondary" id="backFromDetailsBtn">Voltar para Lista</button>
+                 </div>
+                 <div class="details-container">
+                      <h4>Disciplinas Matriculadas:</h4>
+                      <ul id="detailsList">
+                          </ul>
+                      <p id="noDetailsMsg" style="display: none;">Nenhuma disciplina registrada para este aluno.</p>
+                 </div>
+             </div>
+
+             <div id="view-link-disciplines" class="view">
+                 <div class="view-header">
+                     <h2>Vincular Disciplinas</h2>
+                     <button class="btn btn-secondary" id="backFromLinkBtn">Voltar para Lista</button>
+                 </div>
+                 <div class="form-container">
+                     <div id="linkSelectedStudents">
+                         <strong>Alunos Selecionados:</strong>
+                         </div>
+
+                     <h4 class="disciplines-section-header">Selecionar Disciplinas Existentes</h4>
+                     <ul id="linkExistingDisciplinesList">
+                         <li style="background: none; color: #6c757d; font-style: italic; text-align: center; padding: 10px 0;">Nenhuma disciplina existente encontrada.</li>
+                     </ul>
+
+                     <h4 class="disciplines-section-header">Adicionar Novas Disciplinas para Vincular</h4>
+                     <ul id="linkAddedDisciplinesList">
+                         <li style="background: none; color: #6c757d; font-style: italic; text-align: center; padding: 10px 0;">Nenhuma nova disciplina adicionada para vincular.</li>
+                     </ul>
+                     <div class="add-discipline-area">
+                         <input type="text" id="linkNewDisciplineName" placeholder="Nome da nova disciplina">
+                         <button class="btn btn-success btn-sm" id="linkAddDisciplineBtn">Adicionar à Lista</button>
+                     </div>
+                     <p class="form-note">
+                         Selecione disciplinas existentes ou adicione novas para vincular aos alunos selecionados. Disciplinas já existentes para um aluno não serão duplicadas.
+                     </p>
+
+                     <div class="form-actions">
+                         <button class="btn btn-secondary" id="cancelLinkBtn">Cancelar</button>
+                         <button class="btn btn-primary" id="saveLinkBtn">Salvar Vínculo</button>
+                     </div>
+                 </div>
+             </div>
+
+        </main>
+    </div>
+
+    <script>
+        // --- Referências aos Elementos do DOM ---
+        // Obtém referências aos elementos HTML importantes para manipulação no JS
+        const studentsTableBody = document.getElementById('studentsTableBody');
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+        const importBtn = document.getElementById('importBtn');
+        const exportBtn = document.getElementById('exportBtn');
+        const fileInput = document.getElementById('fileInput');
+        const newStudentNameInput = document.getElementById('newStudentName');
+        const editStudentIdInput = document.getElementById('editStudentId');
+        const editStudentNameInput = document.getElementById('editStudentName');
+        const detailsViewTitle = document.getElementById('detailsViewTitle');
+        const detailsList = document.getElementById('detailsList');
+        const noDetailsMsg = document.getElementById('noDetailsMsg');
+        const addStudentBtn = document.getElementById('addStudentBtn');
+        const linkDisciplinesBtn = document.getElementById('linkDisciplinesBtn');
+        const navListView = document.getElementById('navListView');
+        const backFromAddBtn = document.getElementById('backFromAddBtn');
+        const backFromEditBtn = document.getElementById('backFromEditBtn');
+        const backFromDetailsBtn = document.getElementById('backFromDetailsBtn');
+        const backFromLinkBtn = document.getElementById('backFromLinkBtn');
+        const cancelAddBtn = document.getElementById('cancelAddBtn');
+        const cancelEditBtn = document.getElementById('cancelEditBtn');
+        const cancelLinkBtn = document.getElementById('cancelLinkBtn');
+        const saveNewStudentBtn = document.getElementById('saveNewStudentBtn');
+        const saveEditedStudentBtn = document.getElementById('saveEditedStudentBtn');
+        const saveLinkBtn = document.getElementById('saveLinkBtn');
+        const newDisciplineNameInput = document.getElementById('newDisciplineName');
+        const addDisciplineBtn = document.getElementById('addDisciplineBtn');
+        const disciplinesList = document.getElementById('disciplinesList');
+        const editDisciplinesList = document.getElementById('editDisciplinesList');
+        const editNewDisciplineNameInput = document.getElementById('editNewDisciplineName');
+        const editAddDisciplineBtn = document.getElementById('editAddDisciplineBtn');
+        const linkSelectedStudents = document.getElementById('linkSelectedStudents');
+        const linkExistingDisciplinesList = document.getElementById('linkExistingDisciplinesList');
+        const linkAddedDisciplinesList = document.getElementById('linkAddedDisciplinesList');
+        const linkNewDisciplineNameInput = document.getElementById('linkNewDisciplineName');
+        const linkAddDisciplineBtn = document.getElementById('linkAddDisciplineBtn');
+
+
+        // --- Estado da Aplicação e Armazenamento ---
+        const STORAGE_KEY = 'studentsData_v8'; // Chave única para o localStorage (versão para evitar conflitos)
+        const defaultStudents = []; // Array padrão, caso não haja dados salvos (pode ser preenchido com exemplos)
+        let students = []; // Array principal que armazena os dados dos alunos (carregado do storage ou padrão)
+        let currentView = 'view-list'; // ID da view atualmente visível
+        let newStudentDisciplines = []; // Array temporário para disciplinas ao adicionar novo aluno
+        let editingStudentDisciplines = []; // Array temporário para disciplinas ao editar aluno
+        let selectedStudentIds = []; // Array com os IDs dos alunos selecionados na tabela
+        let linkingDisciplinesToAdd = []; // Array temporário para novas disciplinas na view de vínculo
+
+
+        // --- Inicialização ---
+        // A inicialização real (carregar dados, configurar listeners) é movida para o final,
+        // dentro do listener 'DOMContentLoaded' para garantir que o HTML esteja pronto.
+
+
+        // --- Gerenciamento de Views ---
+        /**
+         * Mostra a view (tela) especificada e esconde as outras.
+         * Atualiza o link ativo na sidebar e rola a view para o topo.
+         * @param {string} viewId - O ID do elemento da view a ser exibida (e.g., 'view-list', 'view-add').
+         */
+        function showView(viewId) {
+            // Esconde todas as views
+            document.querySelectorAll('.view').forEach(view => {
+                view.classList.remove('active-view');
+            });
+            // Encontra e mostra a view alvo
+            const targetView = document.getElementById(viewId);
+            if (targetView) {
+                targetView.classList.add('active-view');
+                currentView = viewId; // Atualiza o estado da view atual
+
+                // Rola o conteúdo principal para o topo ao mudar de view
+                document.querySelector('.main-content')?.scrollTo(0, 0);
+
+                // Atualiza o link ativo na sidebar
+                document.querySelectorAll('.sidebar nav a').forEach(link => {
+                    link.classList.remove('active');
+                });
+                // Marca o link 'Alunos' como ativo para todas as views relacionadas a alunos
+                if (['view-list', 'view-add', 'view-edit', 'view-details', 'view-link-disciplines'].includes(viewId)) {
+                    navListView?.classList.add('active');
+                }
+
+                // Limpa/Reseta estados específicos ao entrar em certas views
+                if (viewId === 'view-add') {
+                    // Limpa formulário de adicionar aluno
+                    if(newStudentNameInput) newStudentNameInput.value = '';
+                    newStudentDisciplines = []; // Limpa array temporário de disciplinas
+                    if(disciplinesList) disciplinesList.innerHTML = ''; // Limpa lista visual
+                    if(newDisciplineNameInput) newDisciplineNameInput.value = '';
+                    renderNewDisciplinesList(); // Renderiza a lista vazia (mostra mensagem)
+                }
+                if (viewId === 'view-edit') {
+                    // Limpa input de adicionar nova disciplina na edição
+                     if(editNewDisciplineNameInput) editNewDisciplineNameInput.value = '';
+                    // Nota: Os dados do aluno (nome, disciplinas) são carregados pela função openEditView
+                }
+                if (viewId === 'view-link-disciplines') {
+                    // Limpa estado da view de vincular disciplinas
+                    linkingDisciplinesToAdd = []; // Limpa array temporário de novas disciplinas
+                    if(linkNewDisciplineNameInput) linkNewDisciplineNameInput.value = '';
+                    renderLinkAddedDisciplinesList(); // Renderiza a lista de adicionadas (vazia)
+                    // Nota: Alunos selecionados e disciplinas existentes são carregados por openLinkDisciplinesView
+                }
+            } else {
+                // Fallback caso a view não seja encontrada
+                console.error("View não encontrada:", viewId);
+                showView('view-list'); // Volta para a lista como segurança
+            }
+        }
+
+        /** Navega de volta para a view principal (lista de alunos). */
+        function goBackToList() {
+            showView('view-list');
+        }
+
+        /** Limpa a seleção de alunos na tabela e atualiza a UI relacionada. */
+        function clearStudentSelection() {
+            selectedStudentIds = []; // Esvazia o array de IDs selecionados
+            // Reseta o checkbox "Selecionar Todos"
+            if(selectAllCheckbox) {
+               selectAllCheckbox.checked = false;
+               selectAllCheckbox.indeterminate = false;
+            }
+            // Desmarca todos os checkboxes individuais na tabela
+            if (studentsTableBody) { // Garante que o tbody existe
+                studentsTableBody.querySelectorAll('.student-select-checkbox').forEach(cb => cb.checked = false);
+            }
+            updateLinkButtonState(); // Atualiza o estado do botão "Vincular Disciplinas"
+        }
+
+
+        // --- Manipulação de Dados e Utilitários ---
+        /** Salva o array `students` atual no localStorage. */
+        function saveData() {
+            try {
+                // Converte o array de alunos para JSON string e salva
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(students));
+                console.log("Dados salvos no localStorage."); // Log de sucesso
+            } catch (error) {
+                // Captura erros (ex: localStorage cheio)
+                console.error("Erro ao salvar dados no localStorage:", error);
+                alert("Erro ao salvar dados. Verifique o espaço de armazenamento do navegador.");
+            }
+        }
+
+        /** Calcula o número total de disciplinas para um aluno. */
+         function calculateTotals(student) {
+             // Verifica se 'disciplines' é um array antes de contar
+             const totalSubjects = Array.isArray(student.disciplines) ? student.disciplines.length : 0;
+             return { totalSubjects };
+         }
+
+        /** Escapa caracteres especiais HTML para prevenir XSS (Cross-Site Scripting). */
+        function escapeHtml(unsafe) {
+            // Se não for string, retorna como está
+            if (typeof unsafe !== 'string') return unsafe;
+            // Substitui caracteres especiais por suas entidades HTML
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        /** Retorna um array com nomes de disciplinas únicos de todos os alunos, ordenado alfabeticamente. */
+        function getUniqueDisciplineNames() {
+            const uniqueNames = new Set(); // Usa Set para garantir unicidade automaticamente
+            // Itera sobre todos os alunos
+            students.forEach(student => {
+                // Verifica se o aluno tem um array de disciplinas
+                if (Array.isArray(student.disciplines)) {
+                    // Itera sobre as disciplinas do aluno
+                    student.disciplines.forEach(discipline => {
+                        // Adiciona o nome da disciplina ao Set (ignora vazios/inválidos)
+                        if (discipline && typeof discipline.name === 'string' && discipline.name.trim()) {
+                            uniqueNames.add(discipline.name.trim());
+                        }
+                    });
+                }
+            });
+            // Converte o Set para Array e ordena
+            return Array.from(uniqueNames).sort((a, b) => a.localeCompare(b));
+        }
+
+
+        // --- Renderização da Tabela ---
+        /**
+         * Renderiza (ou re-renderiza) a tabela principal de alunos.
+         * Ordena os alunos por nome antes de exibir.
+         * Inclui tratamento de erro básico.
+         */
+        function renderTable() {
+             // Verifica se o elemento tbody existe antes de tentar modificá-lo
+             if (!studentsTableBody) {
+                 console.error("Elemento studentsTableBody não encontrado para renderizar tabela.");
+                 return;
+             }
+             try { // Inicia bloco try para capturar erros durante a renderização
+                studentsTableBody.innerHTML = ''; // Limpa o conteúdo atual da tabela
+
+                // Tenta obter a linha do cabeçalho para calcular o colspan correto
+                const headerRow = studentsTableBody.previousElementSibling?.rows[0];
+                const colspan = headerRow ? headerRow.cells.length : 4; // Usa 4 como fallback
+
+                // Verifica se há alunos para exibir
+                if (!Array.isArray(students) || students.length === 0) {
+                    // Exibe mensagem se não houver alunos
+                    studentsTableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align:center;padding: 20px;">Nenhum aluno cadastrado.</td></tr>`;
+                    // Desabilita o checkbox "Selecionar Todos"
+                    if(selectAllCheckbox) selectAllCheckbox.disabled = true;
+                    updateLinkButtonState(); // Atualiza botão de vincular (ficará desabilitado)
+                    return; // Interrompe a função
+                }
+
+                // Habilita o checkbox "Selecionar Todos" se houver alunos
+                if(selectAllCheckbox) selectAllCheckbox.disabled = false;
+
+                // Cria uma cópia ordenada do array de alunos por nome
+                const sortedStudents = [...students].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+                // Itera sobre os alunos ordenados para criar as linhas da tabela
+                sortedStudents.forEach(student => {
+                    // Validação mínima dos dados do aluno antes de usar
+                    if (!student || typeof student.id === 'undefined' || typeof student.name !== 'string') {
+                        console.warn("Pulando dados de aluno inválidos:", student);
+                        return; // Pula este aluno e vai para o próximo
+                    }
+                    // Calcula o número de disciplinas
+                    const { totalSubjects } = calculateTotals(student);
+                    // Cria o elemento <tr> (linha da tabela)
+                    const row = document.createElement('tr');
+                    row.dataset.studentId = student.id; // Armazena o ID do aluno na linha (útil para eventos)
+
+                    // Verifica se este aluno está na lista de selecionados
+                    const isSelected = selectedStudentIds.includes(student.id);
+
+                    // Define o HTML interno da linha com as células (<td>)
+                    row.innerHTML = `
+                        <td><input type="checkbox" class="student-select-checkbox" data-id="${student.id}" ${isSelected ? 'checked' : ''} title="Selecionar ${escapeHtml(student.name)}"></td>
+                        <td>${escapeHtml(student.name)}</td>
+                        <td style="text-align: center;">${totalSubjects}</td>
+                        <td style="text-align: center;">
+                            <button class="btn btn-info btn-sm details-btn" data-id="${student.id}" title="Ver Detalhes">ℹ️</button>
+                            <button class="btn btn-warning btn-sm edit-btn" data-id="${student.id}" title="Editar Aluno">✏️</button>
+                            <button class="btn btn-danger btn-sm delete-btn" data-id="${student.id}" title="Excluir Aluno">🗑️</button>
+                        </td>`;
+                    // Adiciona a linha criada ao corpo da tabela
+                    studentsTableBody.appendChild(row);
+                });
+
+                // Atualiza o estado visual do checkbox "Selecionar Todos" e do botão "Vincular"
+                updateSelectAllCheckboxState();
+                updateLinkButtonState();
+                // Nota: Os listeners dos botões e checkboxes são gerenciados por delegação (attachTableButtonListeners),
+                // não sendo necessário reanexá-los a cada renderização.
+
+             } catch (error) { // Captura qualquer erro ocorrido no bloco try
+                 console.error("Erro ao renderizar a tabela de alunos:", error);
+                 // Exibe uma mensagem de erro na própria tabela para o usuário
+                 studentsTableBody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 20px; color: red;">Erro ao carregar a lista de alunos. Tente recarregar a página.</td></tr>`;
+             }
+        }
+
+
+        /** Atualiza o estado visual do checkbox "Selecionar Todos" (marcado, desmarcado ou indeterminado). */
+        function updateSelectAllCheckboxState() {
+            // Sai se o checkbox principal não existir
+            if(!selectAllCheckbox) return;
+
+            // Conta quantos checkboxes de alunos existem na tabela
+            const totalCheckboxes = studentsTableBody ? studentsTableBody.querySelectorAll('.student-select-checkbox').length : 0;
+            // Se não houver alunos/checkboxes, reseta o estado
+            if (totalCheckboxes === 0) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+                return;
+            }
+            // Obtém a contagem de alunos atualmente selecionados
+            const selectedCount = selectedStudentIds.length;
+
+            // Define o estado com base na contagem
+            if (selectedCount === 0) { // Nenhum selecionado
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+            } else if (selectedCount === totalCheckboxes) { // Todos selecionados
+                selectAllCheckbox.checked = true;
+                selectAllCheckbox.indeterminate = false;
+            } else { // Alguns selecionados (estado indeterminado)
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = true;
+            }
+        }
+
+        /** Habilita ou desabilita o botão "Vincular Disciplinas" com base na seleção de alunos. */
+        function updateLinkButtonState() {
+             // Verifica se o botão existe
+             if(linkDisciplinesBtn) {
+                // Desabilita o botão se nenhum aluno estiver selecionado (selectedStudentIds está vazio)
+                linkDisciplinesBtn.disabled = selectedStudentIds.length === 0;
+             }
+        }
+
+        /** Anexa os event listeners principais para a tabela (usando delegação de eventos). */
+        function attachTableButtonListeners() {
+             // Garante que o corpo da tabela exista
+             if (!studentsTableBody) {
+                 console.error("Elemento studentsTableBody não encontrado para anexar listeners.");
+                 return;
+             }
+            // Remove listeners antigos para evitar duplicação (caso a função seja chamada novamente)
+            studentsTableBody.removeEventListener('click', handleTableButtonClick);
+            studentsTableBody.removeEventListener('change', handleTableCheckboxChange);
+
+            // Adiciona um único listener de 'click' ao tbody para lidar com cliques em botões
+            studentsTableBody.addEventListener('click', handleTableButtonClick);
+            // Adiciona um único listener de 'change' ao tbody para lidar com mudanças nos checkboxes
+            studentsTableBody.addEventListener('change', handleTableCheckboxChange);
+        }
+
+        /** Manipula eventos de 'change' que ocorrem nos checkboxes dentro da tabela. */
+        function handleTableCheckboxChange(event) {
+             const target = event.target; // O elemento que disparou o evento (o checkbox)
+             // Verifica se o elemento clicado é um checkbox de aluno
+             if (target.matches('.student-select-checkbox')) {
+                 const studentId = parseInt(target.dataset.id); // Obtém o ID do aluno do atributo data-id
+                 // Ignora se o ID não for um número válido
+                 if (isNaN(studentId)) return;
+
+                 // Atualiza o array de IDs selecionados
+                 if (target.checked) { // Se o checkbox foi marcado
+                     // Adiciona o ID ao array (se ainda não estiver lá)
+                     if (!selectedStudentIds.includes(studentId)) {
+                         selectedStudentIds.push(studentId);
+                     }
+                 } else { // Se o checkbox foi desmarcado
+                     // Remove o ID do array
+                     selectedStudentIds = selectedStudentIds.filter(id => id !== studentId);
+                 }
+                 // Atualiza a UI relacionada à seleção
+                 updateSelectAllCheckboxState();
+                 updateLinkButtonState();
+             }
+        }
+
+
+        /** Manipula eventos de 'click' que ocorrem dentro do corpo da tabela (delegação). */
+        function handleTableButtonClick(event) {
+            // Encontra o botão mais próximo (ou o próprio elemento clicado) que tenha a classe 'btn-sm'
+            const button = event.target.closest('button.btn-sm');
+
+            // Verifica se um botão com 'data-id' foi encontrado
+            if (button && button.dataset.id) {
+                const studentId = parseInt(button.dataset.id); // Obtém o ID do aluno
+                // Valida o ID
+                if (isNaN(studentId)) {
+                    console.error("ID do aluno inválido no botão:", button.dataset.id);
+                    return;
+                }
+
+                // Log para depuração
+                console.log(`Botão clicado: ${button.className}, ID: ${studentId}`);
+
+                // Determina a ação com base nas classes do botão
+                if (button.classList.contains('details-btn')) {
+                    openDetailsView(studentId); // Abre a view de detalhes
+                } else if (button.classList.contains('edit-btn')) {
+                    openEditView(studentId); // Abre a view de edição
+                } else if (button.classList.contains('delete-btn')) {
+                    deleteStudent(studentId); // Chama a função de exclusão
+                }
+            }
+        }
+
+        /** Manipula o clique no checkbox "Selecionar Todos" no cabeçalho da tabela. */
+        function handleSelectAllClick() {
+            // Sai se o checkbox não existir
+            if(!selectAllCheckbox) return;
+
+            const isChecked = selectAllCheckbox.checked; // Verifica se está marcado
+            // Obtém todos os checkboxes de alunos na tabela
+            const checkboxes = studentsTableBody ? studentsTableBody.querySelectorAll('.student-select-checkbox') : [];
+            selectedStudentIds = []; // Limpa a seleção atual antes de definir a nova
+
+            // Itera sobre todos os checkboxes de alunos
+            checkboxes.forEach(checkbox => {
+                const studentId = parseInt(checkbox.dataset.id);
+                 // Verifica se o ID é válido
+                 if (!isNaN(studentId)) {
+                    checkbox.checked = isChecked; // Marca ou desmarca o checkbox individual
+                    if (isChecked) { // Se "Selecionar Todos" foi marcado
+                        selectedStudentIds.push(studentId); // Adiciona o ID à lista de selecionados
+                    }
+                }
+            });
+            // Atualiza o estado do botão "Vincular" (será habilitado se isChecked for true)
+            updateLinkButtonState();
+        }
+
+
+        // --- Gerenciamento de Disciplinas (View Adicionar) ---
+        /** Renderiza a lista de disciplinas temporárias na view 'Adicionar Aluno'. */
+        function renderNewDisciplinesList() {
+            // Verifica se o elemento da lista (<ul>) existe
+            if (!disciplinesList) return;
+            disciplinesList.innerHTML = ''; // Limpa o conteúdo atual
+
+            // Se não houver disciplinas temporárias, mostra mensagem
+            if (newStudentDisciplines.length === 0) {
+                disciplinesList.innerHTML = '<li style="background: none; color: #6c757d; font-style: italic; text-align: center; padding: 10px 0;">Nenhuma disciplina adicionada ainda.</li>';
+            } else {
+                // Ordena as disciplinas alfabeticamente para exibição
+                const sortedDisciplines = [...newStudentDisciplines].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                // Cria um item <li> para cada disciplina
+                sortedDisciplines.forEach((disc) => {
+                    // Encontra o índice original no array não ordenado (necessário para a função de remover)
+                    const originalIndex = newStudentDisciplines.findIndex(d => d.name === disc.name);
+                    if (originalIndex === -1) return; // Segurança extra
+
+                    const li = document.createElement('li');
+                    // Define o HTML do item com o nome e o botão de remover (usando o índice original)
+                    li.innerHTML = `<span>${escapeHtml(disc.name)}</span><button class="remove-discipline-btn" data-index="${originalIndex}" title="Remover Disciplina">🗑️</button>`;
+                    // Adiciona um listener de clique ao botão de remover específico deste item
+                    li.querySelector('.remove-discipline-btn')?.addEventListener('click', (e) => {
+                        removeDiscipline(parseInt(e.target.dataset.index)); // Chama a função de remover com o índice correto
+                    });
+                    disciplinesList.appendChild(li); // Adiciona o <li> à lista <ul>
+                });
+            }
+        }
+        /** Adiciona uma nova disciplina à lista temporária `newStudentDisciplines`. */
+        function addDiscipline() {
+            // Verifica se o input existe
+            if (!newDisciplineNameInput) return;
+            const name = newDisciplineNameInput.value.trim(); // Pega o valor e remove espaços extras
+            // Valida se o nome não está vazio
+            if (!name) {
+                alert("Por favor, insira o nome da disciplina.");
+                newDisciplineNameInput.focus(); // Coloca o foco de volta no input
+                return;
+            }
+            // Verifica se a disciplina já existe na lista temporária (case-insensitive)
+            if (newStudentDisciplines.some(d => d.name.toLowerCase() === name.toLowerCase())) {
+                alert(`A disciplina "${escapeHtml(name)}" já foi adicionada.`);
+                newStudentNameInput.value = ''; // Limpa o input
+                return;
+            }
+            // Adiciona a nova disciplina ao array temporário (com fileCount 0 por padrão)
+            newStudentDisciplines.push({ name: name, fileCount: 0 });
+            newStudentNameInput.value = ''; // Limpa o input
+            renderNewDisciplinesList(); // Atualiza a lista visual
+            newDisciplineNameInput.focus(); // Coloca o foco de volta no input para adicionar mais
+        }
+        /** Remove uma disciplina da lista temporária `newStudentDisciplines` pelo índice. */
+        function removeDiscipline(index) {
+            // Valida o índice
+            if (index >= 0 && index < newStudentDisciplines.length) {
+                newStudentDisciplines.splice(index, 1); // Remove o item do array
+                renderNewDisciplinesList(); // Atualiza a lista visual
+            } else {
+                console.error("Índice inválido para remover disciplina:", index);
+            }
+        }
+
+        // --- Gerenciamento de Disciplinas (View Editar) ---
+        /** Renderiza a lista de disciplinas na view 'Editar Aluno'. */
+        function renderEditDisciplinesList() {
+            // Verifica se o elemento <ul> existe
+            if (!editDisciplinesList) return;
+            editDisciplinesList.innerHTML = ''; // Limpa a lista
+
+            // Se não houver disciplinas para o aluno em edição, mostra mensagem
+             if (editingStudentDisciplines.length === 0) {
+                editDisciplinesList.innerHTML = '<li style="background: none; color: #6c757d; font-style: italic; text-align: center; padding: 10px 0;">Nenhuma disciplina associada.</li>';
+            } else {
+                // Ordena as disciplinas alfabeticamente para exibição
+                const sortedDisciplines = [...editingStudentDisciplines].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                // Cria um item <li> para cada disciplina
+                sortedDisciplines.forEach((disc) => {
+                     // Encontra o índice original (necessário para remover)
+                     const originalIndex = editingStudentDisciplines.findIndex(d => d.name === disc.name);
+                     if (originalIndex === -1) return; // Segurança
+
+                     const li = document.createElement('li');
+                     // Define o HTML do item com nome e botão de remover
+                     li.innerHTML = `<span>${escapeHtml(disc.name)}</span><button class="remove-edit-discipline-btn" data-index="${originalIndex}" title="Remover Disciplina">🗑️</button>`;
+                     // Adiciona listener ao botão de remover
+                     li.querySelector('.remove-edit-discipline-btn')?.addEventListener('click', (e) => {
+                         removeDisciplineFromEdit(parseInt(e.target.dataset.index)); // Chama a função de remover (edição)
+                     });
+                    editDisciplinesList.appendChild(li); // Adiciona o <li> à lista <ul>
+                });
+            }
+        }
+        /** Adiciona uma nova disciplina à lista temporária `editingStudentDisciplines`. */
+        function addDisciplineToEdit() {
+            // Verifica se o input existe
+            if (!editNewDisciplineNameInput) return;
+            const name = editNewDisciplineNameInput.value.trim(); // Pega e limpa o nome
+            // Valida se não está vazio
+            if (!name) {
+                alert("Por favor, insira o nome da disciplina.");
+                editNewDisciplineNameInput.focus();
+                return;
+            }
+            // Verifica se a disciplina já está na lista de edição (case-insensitive)
+            if (editingStudentDisciplines.some(d => d.name.toLowerCase() === name.toLowerCase())) {
+                alert(`A disciplina "${escapeHtml(name)}" já está na lista.`);
+                editNewDisciplineNameInput.value = ''; // Limpa o input
+                return;
+            }
+            // Adiciona a nova disciplina ao array temporário de edição (com fileCount 0)
+            editingStudentDisciplines.push({ name: name, fileCount: 0 });
+            editNewDisciplineNameInput.value = ''; // Limpa o input
+            renderEditDisciplinesList(); // Atualiza a lista visual
+            editNewDisciplineNameInput.focus(); // Foco no input
+        }
+        /** Remove uma disciplina da lista temporária `editingStudentDisciplines` pelo índice. */
+        function removeDisciplineFromEdit(index) {
+             // Valida o índice
+             if (index >= 0 && index < editingStudentDisciplines.length) {
+                editingStudentDisciplines.splice(index, 1); // Remove do array de edição
+                renderEditDisciplinesList(); // Atualiza a lista visual
+            } else {
+                console.error("Índice inválido para remover disciplina (edição):", index);
+            }
+        }
+
+
+        // --- Ações CRUD (Create, Read, Update, Delete) ---
+        /** Abre a view de detalhes para um aluno específico. */
+        function openDetailsView(studentId) {
+            // Encontra o aluno no array principal pelo ID
+            const student = students.find(s => s.id === studentId);
+            // Se não encontrar o aluno, mostra erro e sai
+            if (!student) {
+                console.error("Aluno não encontrado para detalhes:", studentId);
+                alert("Erro: Aluno não encontrado.");
+                return;
+            }
+             // Garante que os elementos da view de detalhes existam
+             if (!detailsViewTitle || !detailsList || !noDetailsMsg) {
+                 console.error("Elementos da view de detalhes não encontrados.");
+                 return;
+             }
+
+            // Atualiza o título da view com o nome do aluno
+            detailsViewTitle.textContent = `Detalhes de ${escapeHtml(student.name)}`;
+            detailsList.innerHTML = ''; // Limpa a lista de detalhes anterior
+
+            // Verifica se o aluno tem disciplinas e se é um array
+            if (Array.isArray(student.disciplines) && student.disciplines.length > 0) {
+                // Ordena as disciplinas por nome
+                const sortedDisciplines = [...student.disciplines].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                // Cria um item <li> para cada disciplina
+                sortedDisciplines.forEach(disc => {
+                    const li = document.createElement('li');
+                    // Mostra o nome e a contagem de arquivos (ou 0 se não definida)
+                    li.innerHTML = `<span>${escapeHtml(disc.name)}</span><span>${disc.fileCount || 0} arquivo(s)</span>`;
+                    detailsList.appendChild(li);
+                });
+                detailsList.style.display = 'block'; // Mostra a lista
+                noDetailsMsg.style.display = 'none'; // Esconde a mensagem "nenhuma disciplina"
+            } else {
+                // Se não houver disciplinas, esconde a lista e mostra a mensagem
+                detailsList.style.display = 'none';
+                noDetailsMsg.style.display = 'block';
+            }
+            showView('view-details'); // Exibe a view de detalhes
+        }
+
+        /** Salva um novo aluno (após preencher o formulário na view-add). */
+        function saveNewStudent() {
+            // Verifica se o input de nome existe
+            if (!newStudentNameInput) return;
+            const name = newStudentNameInput.value.trim(); // Pega e limpa o nome
+            // Valida se o nome foi preenchido
+            if (!name) {
+                alert("Por favor, insira o nome do aluno.");
+                newStudentNameInput.focus();
+                return;
+            }
+            // Cria o objeto do novo aluno
+            const newStudent = {
+                id: Date.now(), // Usa timestamp como ID único simples
+                name: name,
+                // Mapeia as disciplinas do array temporário, garantindo que fileCount exista (padrão 0)
+                disciplines: newStudentDisciplines.map(d => ({ name: d.name, fileCount: d.fileCount || 0 }))
+            };
+            students.push(newStudent); // Adiciona o novo aluno ao array principal
+            saveData(); // Salva os dados no localStorage
+            renderTable(); // Atualiza a tabela na view principal
+            showView('view-list'); // Volta para a view da lista
+            alert(`Aluno "${escapeHtml(name)}" adicionado com sucesso.`); // Mensagem de confirmação
+        }
+
+        /** Abre a view de edição preenchendo os dados de um aluno específico. */
+        function openEditView(studentId) {
+            // Encontra o aluno pelo ID
+            const student = students.find(s => s.id === studentId);
+            // Se não encontrar, mostra erro e sai
+            if (!student) {
+                 console.error("Aluno não encontrado para edição:", studentId);
+                 alert("Erro: Aluno não encontrado.");
+                return;
+            }
+             // Garante que os campos do formulário de edição existam
+             if (!editStudentIdInput || !editStudentNameInput) {
+                 console.error("Elementos da view de edição não encontrados.");
+                 return;
+             }
+            // Preenche os campos do formulário
+            editStudentIdInput.value = student.id; // Armazena o ID (importante para salvar)
+            editStudentNameInput.value = student.name; // Preenche o nome
+            // Cria uma CÓPIA PROFUNDA das disciplinas para o array temporário de edição
+            // Isso evita que modificações na lista temporária afetem o objeto original antes de salvar
+            editingStudentDisciplines = student.disciplines ? JSON.parse(JSON.stringify(student.disciplines)) : [];
+            renderEditDisciplinesList(); // Renderiza a lista de disciplinas editável
+            showView('view-edit'); // Exibe a view de edição
+        }
+
+        /** Salva as alterações feitas em um aluno (após editar na view-edit). */
+        function saveEditedStudent() {
+            // Garante que os campos do formulário existam
+            if (!editStudentIdInput || !editStudentNameInput) {
+                 console.error("Elementos da view de edição não encontrados para salvar.");
+                 return;
+             }
+            // Obtém o ID e o novo nome do formulário
+            const studentId = parseInt(editStudentIdInput.value);
+            const newName = editStudentNameInput.value.trim();
+
+            // Validações básicas
+            if (isNaN(studentId)) { alert("Erro: ID do aluno inválido."); return; }
+            if (!newName) { alert("Por favor, insira o nome do aluno."); editStudentNameInput.focus(); return; }
+
+            // Encontra o índice do aluno no array principal
+            const studentIndex = students.findIndex(s => s.id === studentId);
+            // Se não encontrar (pouco provável, mas seguro verificar)
+            if (studentIndex === -1) {
+                alert("Erro: Aluno não encontrado para salvar alterações.");
+                showView('view-list'); // Volta para a lista
+                return;
+            }
+            // Atualiza os dados do aluno no array principal
+            students[studentIndex].name = newName;
+            // Atualiza as disciplinas usando o array temporário de edição (já contém as remoções/adições)
+            // Garante que fileCount seja preservado ou definido como 0 para novas disciplinas
+            students[studentIndex].disciplines = editingStudentDisciplines.map(d => ({ name: d.name, fileCount: d.fileCount || 0 }));
+            saveData(); // Salva no localStorage
+            renderTable(); // Atualiza a tabela
+            showView('view-list'); // Volta para a lista
+            alert(`Alterações para "${escapeHtml(newName)}" salvas com sucesso.`); // Confirmação
+        }
+
+        /**
+         * Exclui um aluno do sistema após confirmação do usuário.
+         * Inclui tratamento de erro e atualização da seleção.
+         */
+        function deleteStudent(studentId) {
+            // Valida se o studentId é um número
+            if (isNaN(studentId)) {
+                console.error("Tentativa de excluir aluno com ID inválido:", studentId);
+                alert("Erro: ID do aluno inválido para exclusão.");
+                return;
+            }
+            console.log("Tentando excluir aluno com ID:", studentId); // Log
+
+            // Encontra o índice do aluno no array
+            const studentIndex = students.findIndex(s => s.id === studentId);
+            // Se não encontrar o aluno
+            if (studentIndex === -1) {
+                console.error("Aluno não encontrado no array 'students' para ID:", studentId);
+                // Tenta renderizar a tabela novamente, pode ter sido um erro de sincronia
+                renderTable();
+                alert("Erro: Aluno não encontrado para exclusão. A lista foi atualizada.");
+                return;
+            }
+
+            const studentName = students[studentIndex].name; // Pega o nome para a mensagem de confirmação
+            // Pede confirmação ao usuário
+            if (confirm(`Tem certeza que deseja excluir o aluno "${escapeHtml(studentName)}"?\nEsta ação não pode ser desfeita.`)) {
+                try { // Inicia bloco try para a operação de exclusão e atualização da UI
+                    console.log("Confirmação recebida para excluir:", studentName); // Log
+                    // Remove o aluno do array 'students'
+                    students.splice(studentIndex, 1);
+
+                    // Remove o ID do aluno da lista de selecionados, caso estivesse selecionado
+                    selectedStudentIds = selectedStudentIds.filter(id => id !== studentId);
+
+                    // Salva os dados atualizados no localStorage
+                    saveData();
+
+                    // Re-renderiza a tabela para refletir a exclusão e o estado de seleção
+                    renderTable(); // renderTable já chama updateSelectAllCheckboxState e updateLinkButtonState
+
+                    alert(`Aluno "${escapeHtml(studentName)}" excluído com sucesso.`); // Mensagem de sucesso
+
+                    // Se o usuário estava na view de detalhes ou edição do aluno excluído, volta para a lista
+                    if (currentView === 'view-details' || currentView === 'view-edit') {
+                        // Tenta pegar o ID do input de edição, se aplicável
+                        const relatedIdInput = (currentView === 'view-edit') ? document.getElementById('editStudentId') : null;
+                        const relatedIdValue = relatedIdInput ? relatedIdInput.value : null;
+                        // Usa o ID do input ou o ID passado para a função deleteStudent
+                        const relatedId = relatedIdValue ? parseInt(relatedIdValue) : studentId;
+
+                        // Se o ID da view atual corresponde ao aluno excluído, volta para a lista
+                        if (!isNaN(relatedId) && relatedId === studentId) {
+                            showView('view-list');
+                        }
+                    }
+                } catch (error) { // Captura erros durante a exclusão ou atualização da UI
+                    console.error("Erro durante o processo de exclusão ou atualização da interface:", error);
+                    alert("Ocorreu um erro ao tentar excluir o aluno. Verifique o console do desenvolvedor (F12) para mais detalhes.");
+                    // Opcional: Tentar renderizar a tabela mesmo com erro para mostrar o estado atual
+                    // renderTable();
+                }
+            } else {
+                 console.log("Exclusão cancelada pelo usuário para:", studentName); // Log se cancelado
+            }
+        }
+
+
+        // --- Funcionalidade de Vincular Disciplinas ---
+        /** Abre a view para vincular disciplinas aos alunos atualmente selecionados. */
+        function openLinkDisciplinesView() {
+            // Verifica se há alunos selecionados
+            if (selectedStudentIds.length === 0) { alert("Nenhum aluno selecionado."); return; }
+             // Garante que os elementos da view de vínculo existam
+             if (!linkSelectedStudents || !linkExistingDisciplinesList || !linkAddedDisciplinesList) {
+                 console.error("Elementos da view de vincular disciplinas não encontrados.");
+                 return;
+             }
+
+            // Mostra os nomes dos alunos selecionados na área designada
+            const selectedNames = students
+                .filter(s => selectedStudentIds.includes(s.id)) // Filtra apenas os selecionados
+                .map(s => escapeHtml(s.name)); // Pega os nomes (escapados)
+            linkSelectedStudents.innerHTML = `<strong>Alunos Selecionados (${selectedNames.length}):</strong> ${selectedNames.map(name => `<span>${name}</span>`).join('') || 'Nenhum'}`;
+
+            // Popula a lista de disciplinas existentes (obtidas de TODOS os alunos)
+            const uniqueDisciplines = getUniqueDisciplineNames(); // Pega a lista única e ordenada
+            linkExistingDisciplinesList.innerHTML = ''; // Limpa a lista atual
+            if (uniqueDisciplines.length > 0) { // Se existem disciplinas no sistema
+                uniqueDisciplines.forEach(name => {
+                    const li = document.createElement('li');
+                    // Cria um ID único e seguro para o label/checkbox
+                    const checkboxId = `link-disc-${name.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                    // Cria o checkbox dentro de um label para melhor usabilidade
+                    li.innerHTML = `<label for="${checkboxId}"><input type="checkbox" id="${checkboxId}" class="link-existing-discipline-cb" value="${escapeHtml(name)}"><span>${escapeHtml(name)}</span></label>`;
+                    linkExistingDisciplinesList.appendChild(li);
+                });
+            } else { // Se não há disciplinas existentes no sistema
+                 linkExistingDisciplinesList.innerHTML = '<li style="background: none; color: #6c757d; font-style: italic; text-align: center; padding: 10px 0;">Nenhuma disciplina existente encontrada.</li>';
+            }
+
+            // Reseta a lista temporária de novas disciplinas a serem adicionadas nesta view
+            linkingDisciplinesToAdd = [];
+            renderLinkAddedDisciplinesList(); // Renderiza a lista (que estará vazia)
+            showView('view-link-disciplines'); // Exibe a view de vínculo
+        }
+        /** Renderiza a lista de NOVAS disciplinas adicionadas temporariamente na view de vínculo. */
+        function renderLinkAddedDisciplinesList() {
+             // Verifica se o elemento <ul> existe
+             if (!linkAddedDisciplinesList) return;
+            linkAddedDisciplinesList.innerHTML = ''; // Limpa a lista
+
+            // Se a lista temporária estiver vazia, mostra mensagem
+            if (linkingDisciplinesToAdd.length === 0) {
+                linkAddedDisciplinesList.innerHTML = '<li style="background: none; color: #6c757d; font-style: italic; text-align: center; padding: 10px 0;">Nenhuma nova disciplina adicionada.</li>';
+            } else {
+                 // Ordena as disciplinas adicionadas alfabeticamente
+                 const sortedAdded = [...linkingDisciplinesToAdd].sort((a, b) => a.localeCompare(b));
+                 // Cria um item <li> para cada disciplina adicionada
+                 sortedAdded.forEach((name) => {
+                    // Encontra o índice original (para o botão remover)
+                    const originalIndex = linkingDisciplinesToAdd.findIndex(d => d === name);
+                     if (originalIndex === -1) return; // Segurança
+
+                    const li = document.createElement('li');
+                    // Define o HTML com o nome e o botão de remover
+                    li.innerHTML = `<span>${escapeHtml(name)}</span><button class="remove-link-added-discipline-btn" data-index="${originalIndex}" title="Remover">🗑️</button>`;
+                    // Adiciona listener ao botão de remover
+                    li.querySelector('.remove-link-added-discipline-btn')?.addEventListener('click', (e) => {
+                        removeDisciplineFromLinkAddList(parseInt(e.target.dataset.index)); // Chama a função de remover (vínculo)
+                    });
+                    linkAddedDisciplinesList.appendChild(li);
+                 });
+            }
+        }
+        /** Adiciona uma nova disciplina à lista temporária `linkingDisciplinesToAdd`. */
+        function addDisciplineToLinkView() {
+             // Verifica se o input existe
+             if (!linkNewDisciplineNameInput) return;
+            const name = linkNewDisciplineNameInput.value.trim(); // Pega e limpa o nome
+            // Valida se não está vazio
+            if (!name) { alert("Por favor, insira o nome da nova disciplina."); linkNewDisciplineNameInput.focus(); return; }
+            // Verifica se já foi adicionada à lista temporária (case-insensitive)
+            if (linkingDisciplinesToAdd.some(d => d.toLowerCase() === name.toLowerCase())) {
+                alert(`A disciplina "${escapeHtml(name)}" já foi adicionada.`);
+                linkNewDisciplineNameInput.value = ''; // Limpa input
+                return;
+            }
+            linkingDisciplinesToAdd.push(name); // Adiciona ao array temporário
+            linkNewDisciplineNameInput.value = ''; // Limpa input
+            renderLinkAddedDisciplinesList(); // Atualiza a lista visual
+            linkNewDisciplineNameInput.focus(); // Foco no input
+        }
+        /** Remove uma disciplina da lista temporária `linkingDisciplinesToAdd` pelo índice. */
+        function removeDisciplineFromLinkAddList(index) {
+            // Valida índice
+            if (index >= 0 && index < linkingDisciplinesToAdd.length) {
+                linkingDisciplinesToAdd.splice(index, 1); // Remove do array
+                renderLinkAddedDisciplinesList(); // Atualiza a lista visual
+            } else {
+                console.error("Índice inválido para remover (vínculo):", index);
+            }
+        }
+        /** Salva os vínculos (associa as disciplinas selecionadas/adicionadas aos alunos selecionados). */
+        function saveDisciplineLinks() {
+            // Pega os nomes das disciplinas existentes que foram marcadas nos checkboxes
+            const selectedExisting = Array.from(document.querySelectorAll('.link-existing-discipline-cb:checked'))
+                                    .map(cb => cb.value); // Pega o valor (nome da disciplina)
+            // Combina as disciplinas existentes selecionadas com as novas adicionadas na view
+            // Usa um Set para garantir que cada nome de disciplina apareça apenas uma vez
+            const allDisciplinesToLink = new Set([...selectedExisting, ...linkingDisciplinesToAdd]);
+
+            // Verifica se alguma disciplina foi selecionada ou adicionada
+            if (allDisciplinesToLink.size === 0) { alert("Nenhuma disciplina selecionada ou adicionada."); return; }
+            // Verifica novamente se há alunos selecionados (embora a view não devesse abrir sem eles)
+            if (selectedStudentIds.length === 0) { alert("Erro: Nenhum aluno selecionado."); goBackToList(); return; }
+
+            let disciplinesLinkedCountTotal = 0; // Contador para a mensagem final
+
+            // Itera sobre cada ID de aluno selecionado
+            selectedStudentIds.forEach(studentId => {
+                const student = students.find(s => s.id === studentId); // Encontra o objeto aluno
+                if (student) { // Se o aluno foi encontrado
+                     // Garante que o aluno tenha um array 'disciplines'
+                     if (!Array.isArray(student.disciplines)) student.disciplines = [];
+                     // Cria um Set com os nomes das disciplinas ATUAIS do aluno (em minúsculas) para verificação rápida e case-insensitive
+                     const studentDisciplineNamesLower = new Set(student.disciplines.map(d => d.name.toLowerCase()));
+                     let studentLinksAdded = 0; // Contador para este aluno específico
+
+                     // Itera sobre cada disciplina que deve ser vinculada (do Set combinado)
+                     allDisciplinesToLink.forEach(disciplineName => {
+                         // Verifica se o aluno JÁ NÃO POSSUI essa disciplina (comparação case-insensitive)
+                         if (!studentDisciplineNamesLower.has(disciplineName.toLowerCase())) {
+                             // Se não possui, adiciona a disciplina ao array do aluno (com fileCount 0)
+                             student.disciplines.push({ name: disciplineName, fileCount: 0 });
+                             studentLinksAdded++; // Incrementa o contador
+                         }
+                     });
+                     disciplinesLinkedCountTotal += studentLinksAdded; // Adiciona ao contador total
+                } else {
+                    // Aviso caso um ID selecionado não corresponda a um aluno (pouco provável)
+                    console.warn(`Aluno ID ${studentId} não encontrado durante o vínculo.`);
+                }
+            });
+
+            // Se algum vínculo novo foi realmente criado
+            if (disciplinesLinkedCountTotal > 0) {
+                saveData(); // Salva os dados alterados
+                alert(`${allDisciplinesToLink.size} disciplina(s) processada(s).\n${disciplinesLinkedCountTotal} vínculo(s) novo(s) criado(s) para ${selectedStudentIds.length} aluno(s).`);
+            } else {
+                 // Mensagem se nenhuma disciplina nova foi adicionada (talvez todas já existissem)
+                 alert("Nenhuma nova disciplina foi vinculada (as selecionadas/adicionadas podem já existir para os alunos).");
+            }
+            clearStudentSelection(); // Limpa a seleção de alunos na tabela
+            renderTable(); // Atualiza a tabela (pode mostrar contagem de disciplinas atualizada)
+            goBackToList(); // Volta para a view da lista
+        }
+
+
+        // --- Importação / Exportação (Excel) ---
+        /** Simula um clique no input de arquivo oculto para abrir a janela de seleção de arquivo. */
+        function triggerImport() { if(fileInput) fileInput.click(); }
+
+        /** Manipula o evento 'change' do input de arquivo (quando um arquivo é selecionado). */
+        function handleFileImport(event) {
+            const file = event.target.files[0]; // Pega o primeiro arquivo selecionado
+            // Sai se nenhum arquivo foi selecionado
+            if (!file) return;
+
+            const reader = new FileReader(); // Cria um objeto para ler o arquivo
+
+            // Define o que fazer quando a leitura do arquivo for concluída
+            reader.onload = (e) => {
+                const data = e.target.result; // Conteúdo binário do arquivo
+                try {
+                     // Verifica se a biblioteca SheetJS (XLSX) foi carregada corretamente
+                     if (typeof XLSX === 'undefined') {
+                         console.error("Erro ao importar: Biblioteca SheetJS (XLSX) não carregada.");
+                         alert("Erro ao importar: A biblioteca necessária (SheetJS) não pôde ser carregada. Verifique a conexão com a internet ou o console do navegador.");
+                         return; // Interrompe a importação
+                     }
+                    // Lê o arquivo Excel usando SheetJS
+                    const workbook = XLSX.read(data, { type: 'binary' });
+                    const firstSheetName = workbook.SheetNames[0]; // Pega o nome da primeira planilha
+                    const worksheet = workbook.Sheets[firstSheetName]; // Pega a planilha
+                    // Converte a planilha para um array de arrays (cada array interno é uma linha)
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                    // Chama a função para processar os dados lidos
+                    importFromExcel(jsonData);
+                } catch (error) {
+                    // Captura erros durante a leitura ou processamento do Excel
+                    console.error("Erro ao ler ou processar o ficheiro Excel:", error);
+                    alert("Erro ao processar o ficheiro Excel. Verifique se o formato está correto (Coluna A: Nome, Coluna B ou C: Disciplinas) e tente novamente.");
+                } finally {
+                    // Limpa o valor do input de arquivo para permitir importar o mesmo arquivo novamente
+                    if(fileInput) fileInput.value = '';
+                }
+            };
+
+            // Define o que fazer em caso de erro na leitura do arquivo
+            reader.onerror = (error) => {
+                console.error("Erro ao ler o ficheiro:", error);
+                alert("Ocorreu um erro ao tentar ler o ficheiro selecionado.");
+                 if(fileInput) fileInput.value = ''; // Limpa o input
+            };
+
+            // Inicia a leitura do arquivo como uma string binária (necessário para XLSX.read)
+            reader.readAsBinaryString(file);
+        }
+
+        /** Processa os dados importados do Excel (representados como array de arrays). */
+        function importFromExcel(data) {
+            // Verifica se há dados e se tem pelo menos cabeçalho + 1 linha de dados
+            if (!Array.isArray(data) || data.length < 2) {
+                alert("Ficheiro Excel vazio ou inválido. Certifique-se de que a primeira linha contém cabeçalhos e há dados de alunos nas linhas seguintes.");
+                return;
+            }
+
+            let importedCount = 0; // Contador de alunos importados com sucesso
+            let skippedCount = 0; // Contador de alunos pulados (duplicados ou sem nome)
+            // Cria um Set com os nomes dos alunos existentes (em minúsculas) para verificação rápida de duplicatas
+            const existingNamesLower = new Set(students.map(s => s.name.toLowerCase()));
+
+            // Itera sobre as linhas do arquivo (começando da linha 1 para pular o cabeçalho)
+            for (let i = 1; i < data.length; i++) {
+                const row = data[i];
+                // Pula linhas vazias ou inválidas
+                if (!Array.isArray(row) || row.length === 0) continue;
+
+                // Extrai os dados das colunas esperadas (A, B, C)
+                const name = row[0] ? String(row[0]).trim() : ''; // Coluna A: Nome
+                const disciplinesCsv = row[1] ? String(row[1]).trim() : ''; // Coluna B: Disciplinas CSV (opcional)
+                const disciplinesJson = row[2] ? String(row[2]).trim() : ''; // Coluna C: Disciplinas JSON (opcional, prioritário)
+
+                // Pula a linha se não houver nome
+                if (!name) {
+                    skippedCount++;
+                    continue;
+                }
+
+                // Verifica se o aluno já existe no sistema (case-insensitive)
+                if (existingNamesLower.has(name.toLowerCase())) {
+                    console.log(`Aluno "${escapeHtml(name)}" já existe, pulando importação.`);
+                    skippedCount++;
+                    continue; // Pula para a próxima linha
+                }
+
+                let disciplines = []; // Array para armazenar as disciplinas do aluno importado
+                // Tenta processar a coluna C (JSON) primeiro, pois contém mais detalhes (fileCount)
+                if (disciplinesJson) {
+                    try {
+                        const parsedDisciplines = JSON.parse(disciplinesJson);
+                        // Valida se o JSON parseado é um array
+                        if (Array.isArray(parsedDisciplines)) {
+                            // Filtra e mapeia as disciplinas do JSON, garantindo 'name' e 'fileCount'
+                            disciplines = parsedDisciplines
+                                .filter(d => d && typeof d.name === 'string' && d.name.trim()) // Garante que tenha nome
+                                .map(d => ({ name: d.name.trim(), fileCount: d.fileCount || 0 })); // Garante fileCount
+                        } else {
+                            // Se o JSON não for um array, avisa e tenta usar a coluna B (CSV)
+                            console.warn(`Formato JSON inválido na Coluna C para aluno "${escapeHtml(name)}", tentando Coluna B (CSV).`);
+                            if (disciplinesCsv) {
+                                disciplines = disciplinesCsv.split(',')
+                                    .map(d => d.trim()).filter(d => d) // Limpa e filtra nomes vazios
+                                    .map(dName => ({ name: dName, fileCount: 0 })); // Cria objetos com fileCount 0
+                            }
+                        }
+                    } catch (jsonError) {
+                        // Se houver erro ao parsear o JSON, avisa e tenta usar a coluna B (CSV)
+                        console.warn(`Erro ao parsear JSON da Coluna C para aluno "${escapeHtml(name)}": ${jsonError}. Tentando Coluna B (CSV).`);
+                        if (disciplinesCsv) {
+                             disciplines = disciplinesCsv.split(',')
+                                 .map(d => d.trim()).filter(d => d)
+                                 .map(dName => ({ name: dName, fileCount: 0 }));
+                        }
+                    }
+                } else if (disciplinesCsv) { // Se não houver JSON na coluna C, usa a coluna B (CSV)
+                    disciplines = disciplinesCsv.split(',')
+                        .map(d => d.trim()).filter(d => d)
+                        .map(dName => ({ name: dName, fileCount: 0 }));
+                }
+                // Se nenhuma disciplina foi encontrada (nem JSON nem CSV), 'disciplines' será um array vazio []
+
+                // Cria o objeto do novo aluno
+                const newStudent = {
+                    id: Date.now() + i, // Cria um ID único (timestamp + índice para evitar colisões rápidas)
+                    name: name,
+                    disciplines: disciplines // Adiciona as disciplinas processadas
+                };
+                students.push(newStudent); // Adiciona ao array principal
+                existingNamesLower.add(name.toLowerCase()); // Adiciona o nome ao Set para futuras verificações nesta importação
+                importedCount++; // Incrementa o contador de importados
+            }
+
+            // Após processar todas as linhas, verifica se algum aluno foi importado
+            if (importedCount > 0) {
+                saveData(); // Salva os dados atualizados
+                renderTable(); // Atualiza a tabela
+                alert(`${importedCount} aluno(s) importado(s) com sucesso.\n${skippedCount} aluno(s) foram pulados (nome vazio ou já existente).`);
+            } else {
+                // Mensagem se nenhum aluno novo foi adicionado
+                alert(`Nenhum aluno novo foi importado.\n${skippedCount} aluno(s) foram pulados (nome vazio ou já existente).`);
+            }
+        }
+
+        /** Exporta os dados dos alunos atuais para um arquivo Excel (.xlsx). */
+        function exportToExcel() {
+             // Verifica se há alunos para exportar
+             if (!Array.isArray(students) || students.length === 0) {
+                 alert("Não há alunos para exportar.");
+                 return;
+             }
+             // Verifica novamente se a biblioteca XLSX está carregada
+             if (typeof XLSX === 'undefined') {
+                 console.error("Erro ao exportar: Biblioteca SheetJS (XLSX) não carregada.");
+                 alert("Erro ao exportar: A biblioteca necessária (SheetJS) não pôde ser carregada.");
+                 return;
+             }
+             try {
+                 // Mapeia os dados dos alunos para um formato adequado para a planilha
+                 const exportData = students.map(student => {
+                     // Calcula o número de disciplinas
+                     const { totalSubjects } = calculateTotals(student);
+                     // Formata as disciplinas como uma string JSON (para preservar fileCount)
+                     const disciplinesJson = JSON.stringify(student.disciplines || []);
+                     // Formata as disciplinas como uma string CSV (para visualização mais simples no Excel)
+                     const disciplinesCsv = Array.isArray(student.disciplines) ? student.disciplines.map(d => d.name).join(', ') : '';
+
+                     // Retorna um objeto representando a linha na planilha
+                     return {
+                         'Nome do Aluno': student.name,             // Coluna A
+                         'Disciplinas (CSV)': disciplinesCsv,     // Coluna B
+                         'Disciplinas (JSON)': disciplinesJson,    // Coluna C (para re-importação)
+                         'Nº Disciplinas': totalSubjects           // Coluna D (informativo)
+                     };
+                 });
+
+                 // Cria a planilha (worksheet) a partir dos dados mapeados
+                 const worksheet = XLSX.utils.json_to_sheet(exportData);
+                 // Define larguras de coluna (opcional, melhora a visualização)
+                 worksheet['!cols'] = [ { wch: 30 }, { wch: 40 }, { wch: 50 }, { wch: 15 } ]; // Larguras para A, B, C, D
+
+                 // Cria um novo workbook (arquivo Excel)
+                 const workbook = XLSX.utils.book_new();
+                 // Adiciona a planilha ao workbook com o nome "Alunos"
+                 XLSX.utils.book_append_sheet(workbook, worksheet, "Alunos");
+
+                 // Gera o nome do arquivo com a data atual
+                 const dateStr = new Date().toISOString().slice(0, 10); // Formato YYYY-MM-DD
+                 const filename = `alunos_export_${dateStr}.xlsx`;
+
+                 // Inicia o download do arquivo Excel gerado
+                 XLSX.writeFile(workbook, filename);
+                 console.log(`Arquivo "${filename}" gerado para download.`);
+
+             } catch (error) {
+                  // Captura erros durante a geração do Excel
+                  console.error("Erro ao gerar o arquivo Excel:", error);
+                  alert("Ocorreu um erro ao tentar gerar o arquivo Excel.");
+             }
+        }
+
+
+        // --- Configuração dos Event Listeners ---
+        /** Configura todos os event listeners iniciais da aplicação. */
+        function setupEventListeners() {
+            // Adiciona listeners aos botões principais, verificando se existem antes
+            addStudentBtn?.addEventListener('click', () => showView('view-add'));
+            linkDisciplinesBtn?.addEventListener('click', openLinkDisciplinesView);
+            navListView?.addEventListener('click', (e) => { e.preventDefault(); goBackToList(); }); // Link da sidebar
+
+            // Botões "Voltar"
+            backFromAddBtn?.addEventListener('click', goBackToList);
+            backFromEditBtn?.addEventListener('click', goBackToList);
+            backFromDetailsBtn?.addEventListener('click', goBackToList);
+            backFromLinkBtn?.addEventListener('click', goBackToList);
+
+            // Botões "Cancelar"
+            cancelAddBtn?.addEventListener('click', goBackToList);
+            cancelEditBtn?.addEventListener('click', goBackToList);
+            // Ao cancelar o vínculo, também limpa a seleção de alunos
+            cancelLinkBtn?.addEventListener('click', () => { clearStudentSelection(); goBackToList(); });
+
+            // Botões "Salvar"
+            saveNewStudentBtn?.addEventListener('click', saveNewStudent);
+            saveEditedStudentBtn?.addEventListener('click', saveEditedStudent);
+            saveLinkBtn?.addEventListener('click', saveDisciplineLinks);
+
+            // Botões e inputs para adicionar disciplinas nas diferentes views
+            addDisciplineBtn?.addEventListener('click', addDiscipline);
+            editAddDisciplineBtn?.addEventListener('click', addDisciplineToEdit);
+            linkAddDisciplineBtn?.addEventListener('click', addDisciplineToLinkView);
+            // Adiciona funcionalidade "Enter" para adicionar disciplinas
+            newDisciplineNameInput?.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); addDiscipline(); } });
+            editNewDisciplineNameInput?.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); editAddDisciplineBtn.click(); } }); // Simula clique no botão
+            linkNewDisciplineNameInput?.addEventListener('keypress', (e) => { if (e.key === 'Enter') { e.preventDefault(); linkAddDisciplineBtn.click(); } }); // Simula clique no botão
+
+            // Checkbox "Selecionar Todos"
+            selectAllCheckbox?.addEventListener('click', handleSelectAllClick);
+
+            // Botões de Importar/Exportar e input de arquivo
+            importBtn?.addEventListener('click', triggerImport);
+            exportBtn?.addEventListener('click', exportToExcel);
+            fileInput?.addEventListener('change', handleFileImport);
+
+            // Configura os listeners da tabela (que usam delegação)
+            attachTableButtonListeners();
+        }
+
+
+        // --- Inicialização da Aplicação ---
+        // Espera o DOM estar completamente carregado antes de executar o script principal
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log("DOM carregado. Inicializando aplicação Gestão de Alunos.");
+
+             // Carrega os dados do localStorage ou usa o array padrão
+             try {
+                 const storedData = localStorage.getItem(STORAGE_KEY); // Tenta obter os dados salvos
+                 if (storedData) { // Se existem dados salvos
+                     const parsedData = JSON.parse(storedData); // Converte a string JSON para objeto/array
+                     // Valida se os dados carregados são um array (formato esperado)
+                     if (Array.isArray(parsedData)) {
+                         students = parsedData; // Usa os dados carregados
+                         console.log(`Dados carregados do localStorage (${students.length} alunos).`);
+                     } else {
+                         // Se o formato for inválido, lança um erro
+                         throw new Error("Dados armazenados não são um array.");
+                     }
+                 } else {
+                     // Se não há dados salvos, usa o array padrão (vazio ou com exemplos)
+                      students = defaultStudents;
+                      // Opcional: Salvar os dados padrão na primeira execução
+                      // if (defaultStudents.length > 0) saveData();
+                      console.log("Nenhum dado encontrado no localStorage, usando padrão (ou vazio).");
+                 }
+             } catch (error) {
+                 // Captura erros ao carregar ou parsear os dados do localStorage
+                 console.error("Erro ao carregar dados do localStorage:", error);
+                 students = defaultStudents; // Usa o padrão como fallback
+                 alert("Erro ao carregar dados salvos. Usando dados padrão.");
+             }
+
+            // Verifica se os elementos essenciais da UI existem antes de prosseguir
+            if (document.getElementById('view-list') && studentsTableBody) {
+               setupEventListeners(); // Configura todos os event listeners
+               renderTable(); // Renderiza a tabela inicial com os dados carregados/padrão
+               showView('view-list'); // Garante que a view da lista seja exibida ao iniciar
+            } else {
+                // Erro crítico se a estrutura HTML básica não for encontrada
+                console.error("Estrutura HTML principal (view-list ou studentsTableBody) não encontrada. A aplicação não pode ser inicializada.");
+                // Opcional: Exibe uma mensagem de erro diretamente na página
+                document.body.innerHTML = '<p style="color: red; padding: 20px;">Erro Crítico: A estrutura da página está incompleta ou corrompida. A aplicação não pode carregar. Verifique o console (F12) para mais detalhes.</p>';
+            }
+        });
+
+    </script>
+</body>
+</html>
