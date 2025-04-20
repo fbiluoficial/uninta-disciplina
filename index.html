@@ -406,6 +406,7 @@
                      <div class="action-buttons">
                          <button id="addStudentBtn" class="btn btn-success">Adicionar Aluno</button>
                          <button id="linkDisciplinesBtn" class="btn btn-info" disabled>Vincular Disciplinas aos Selecionados</button>
+                         <button id="deleteSelectedBtn" class="btn btn-danger" disabled>Excluir Selecionados</button>
                          <button id="importBtn" class="btn btn-secondary">Importar (Excel)</button>
                          <button id="exportBtn" class="btn btn-primary">Exportar (Excel)</button>
                          <input type="file" id="fileInput" accept=".xlsx, .xls" style="display: none;">
@@ -553,6 +554,7 @@
         const noDetailsMsg = document.getElementById('noDetailsMsg');
         const addStudentBtn = document.getElementById('addStudentBtn');
         const linkDisciplinesBtn = document.getElementById('linkDisciplinesBtn');
+        const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
         const navListView = document.getElementById('navListView');
         const backFromAddBtn = document.getElementById('backFromAddBtn');
         const backFromEditBtn = document.getElementById('backFromEditBtn');
@@ -834,13 +836,18 @@
             }
         }
 
-        /** Habilita ou desabilita o botão "Vincular Disciplinas" com base na seleção de alunos. */
+        /** Atualiza o estado dos botões "Vincular Disciplinas" e "Excluir Selecionados" com base na seleção de alunos. */
         function updateLinkButtonState() {
-             // Verifica se o botão existe
-             if(linkDisciplinesBtn) {
+            // Verifica se os botões existem
+            if(linkDisciplinesBtn) {
                 // Desabilita o botão se nenhum aluno estiver selecionado (selectedStudentIds está vazio)
                 linkDisciplinesBtn.disabled = selectedStudentIds.length === 0;
-             }
+            }
+            
+            // Atualiza também o estado do botão "Excluir Selecionados"
+            if(deleteSelectedBtn) {
+                deleteSelectedBtn.disabled = selectedStudentIds.length === 0;
+            }
         }
 
         /** Anexa os event listeners principais para a tabela (usando delegação de eventos). */
@@ -1262,6 +1269,58 @@
             }
         }
 
+        /**
+         * Exclui todos os alunos selecionados na tabela após confirmação do usuário.
+         * Atualiza a interface após a exclusão.
+         */
+        function deleteSelectedStudents() {
+            // Verifica se há alunos selecionados
+            if (selectedStudentIds.length === 0) {
+                alert("Nenhum aluno selecionado para excluir.");
+                return;
+            }
+
+            // Obtém os nomes dos alunos selecionados para mostrar na mensagem de confirmação
+            const selectedStudentNames = students
+                .filter(student => selectedStudentIds.includes(student.id))
+                .map(student => student.name);
+
+            // Constrói a mensagem de confirmação
+            let confirmMessage = `Tem certeza que deseja excluir ${selectedStudentIds.length} aluno(s) selecionado(s)?`;
+            
+            // Se não forem muitos alunos, mostra os nomes na mensagem
+            if (selectedStudentNames.length <= 5) {
+                confirmMessage += `\n\n${selectedStudentNames.join('\n')}`;
+            }
+            
+            confirmMessage += '\n\nEsta ação não pode ser desfeita.';
+
+            // Pede confirmação do usuário
+            if (confirm(confirmMessage)) {
+                try {
+                    // Filtra o array principal para manter apenas os alunos NÃO selecionados
+                    students = students.filter(student => !selectedStudentIds.includes(student.id));
+                    
+                    // Salva os dados atualizados
+                    saveData();
+                    
+                    // Exibe mensagem de sucesso
+                    alert(`${selectedStudentIds.length} aluno(s) excluído(s) com sucesso.`);
+                    
+                    // Limpa a seleção (esvazia o array)
+                    selectedStudentIds = [];
+                    
+                    // Atualiza a tabela e o estado dos botões
+                    renderTable();
+                    
+                    // Nota: renderTable já chama updateSelectAllCheckboxState e updateLinkButtonState
+                } catch (error) {
+                    console.error("Erro ao excluir os alunos selecionados:", error);
+                    alert("Ocorreu um erro ao tentar excluir os alunos selecionados. Verifique o console para mais detalhes.");
+                }
+            }
+        }
+
 
         // --- Funcionalidade de Vincular Disciplinas ---
         /** Abre a view para vincular disciplinas aos alunos atualmente selecionados. */
@@ -1625,6 +1684,7 @@
             // Adiciona listeners aos botões principais, verificando se existem antes
             addStudentBtn?.addEventListener('click', () => showView('view-add'));
             linkDisciplinesBtn?.addEventListener('click', openLinkDisciplinesView);
+            deleteSelectedBtn?.addEventListener('click', deleteSelectedStudents);
             navListView?.addEventListener('click', (e) => { e.preventDefault(); goBackToList(); }); // Link da sidebar
 
             // Botões "Voltar"
